@@ -1,0 +1,37 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2013
+VisualStudioVersion = 12.0.30110.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AsanaSharpCmd", "AsanaSharpCmd\AsanaSharpCmd.csproj", "{334B60F2-C534-456B-8B11-7EE920095C6F}"
+	ProjectSection(ProjectDependencies) = postProject
+		{62734268-B395-4A9E-8EE2-20D249444F7E} = {62734268-B395-4A9E-8EE2-20D249444F7E}
+	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AsanaSharp", "AsanaSharp\AsanaSharp.csproj", "{62734268-B395-4A9E-8EE2-20D249444F7E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AsanaSharpApiTemplate", "AsanaSharpApiTemplate\AsanaSharpApiTemplate.csproj", "{957DED2C-CCB4-4A70-8E82-050F5B2BF48B}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{334B60F2-C534-456B-8B11-7EE920095C6F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{334B60F2-C534-456B-8B11-7EE920095C6F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{334B60F2-C534-456B-8B11-7EE920095C6F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{334B60F2-C534-456B-8B11-7EE920095C6F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{62734268-B395-4A9E-8EE2-20D249444F7E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{62734268-B395-4A9E-8EE2-20D249444F7E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{62734268-B395-4A9E-8EE2-20D249444F7E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{62734268-B395-4A9E-8EE2-20D249444F7E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{957DED2C-CCB4-4A70-8E82-050F5B2BF48B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{957DED2C-CCB4-4A70-8E82-050F5B2BF48B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{957DED2C-CCB4-4A70-8E82-050F5B2BF48B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{957DED2C-CCB4-4A70-8E82-050F5B2BF48B}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
