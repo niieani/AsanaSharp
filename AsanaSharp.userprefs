@@ -1,0 +1,14 @@
+﻿<Properties>
+  <MonoDevelop.Ide.Workspace ActiveConfiguration="Debug" ActiveRuntime="Mono 3.4.0 (tarball)&#xD;&#xA;Copyright)" />
+  <MonoDevelop.Ide.Workbench ActiveDocument="AsanaSharpApiDefinition\Helpers.cs">
+    <Files>
+      <File FileName="AsanaSharp\Generator.tt" Line="1" Column="1" />
+      <File FileName="AsanaSharpApiDefinition\ApiTemplate.cs" Line="1" Column="1" />
+      <File FileName="AsanaSharpApiDefinition\Helpers.cs" Line="1" Column="1" />
+    </Files>
+  </MonoDevelop.Ide.Workbench>
+  <MonoDevelop.Ide.DebuggingService.Breakpoints>
+    <BreakpointStore />
+  </MonoDevelop.Ide.DebuggingService.Breakpoints>
+  <MonoDevelop.Ide.DebuggingService.PinnedWatches />
+</Properties>

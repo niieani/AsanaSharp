@@ -1,6 +1,7 @@
 ﻿<#@ template debug="true" hostspecific="false" language="C#" #>
 <#@ assembly name="System.Core" #>
 <#@ assembly name="$(SolutionDir)AsanaSharpApiTemplate\bin\Debug\AsanaSharpApiTemplate.dll" #>
+<#@ import namespace="AsanaSharp" #>
 <#@ import namespace="Microsoft.CSharp" #>
 <#@ import namespace="System.CodeDom" #>
 <#@ import namespace="System.Linq" #>
@@ -9,7 +10,6 @@
 <#@ import namespace="System.Security.Cryptography.X509Certificates" #>
 <#@ import namespace="System.Text" #>
 <#@ import namespace="System.Collections.Generic" #>
-<#@ import namespace="AsanaSharp" #>
 <#@ output extension=".cs" #>
 <#
 // assembly name="$(TargetPath)"
@@ -55,15 +55,6 @@ Action<PropertyInfo[]> makeSave = delegate(PropertyInfo[] classProperties)
 	                AddProject(project);
 	            }
 	        }
-
-
-            /*
-            return new
-            {
-                Lala = "test",
-                Projects = new[] { "test" }
-            };
-            */
 <#
 	foreach (var classProperty in classProperties)
 	{
@@ -229,7 +220,7 @@ Action<UniversalProperty> makeMember = delegate(UniversalProperty classProperty)
             }
             if (flag.HasFlag(EndpointMethods.Post))
             {
-				methodName = "Create" + niceName.Depluralize();
+				methodName = "Create" + niceNameSingular;
 				methodType = "POST";
 				methodReturns = "Task<Asana" + classProperty.Name.Depluralize() + ">";
 				parameters = classProperty.GetCustomAttributes<CreateParamAttribute>(true).Cast<ParamAttribute>().ToList();
@@ -396,6 +387,8 @@ Action<UniversalProperty> makeMember = delegate(UniversalProperty classProperty)
 					<#= niceName #>.Import(resultsCollection);
 				}
 
+				AsanaHost.AsanaCache.<#= classProperty.FriendlyInnerName #>Collection.Import(resultsCollection);
+
 					//<#= niceName #> = jsonData.Data.ToObject<<#= classProperty.FriendlyTypeNameOrAsanaList #>>(AsanaHost.JsonDeserializer);
 				//else
 					//AsanaHost.JsonDeserializer.Populate(jsonData.Data.CreateReader(), <#= niceName #>);
@@ -468,13 +461,20 @@ foreach (var endpointClass in assembly.GetTypes().Except(new[]{typeof(Asana)}))
 		{
 			makeMember(new UniversalProperty(classProperty));
 		}
+        var endpointAttribute = endpointClass.GetCustomAttribute<EndpointAttribute>();
+        if (endpointAttribute.Methods.HasFlag(EndpointMethods.Post) || endpointAttribute.Methods.HasFlag(EndpointMethods.Put))
+        {
+            
 #>
 		public async Task<<#= endpointClass.Name #>> Save()
 		{
 <#
-		makeSave(classProperties);
+			makeSave(classProperties);
 #>
 		}
+<#
+        }
+#>
 
 		[OnDeserialized]
 		internal void OnDeserializedMethod(StreamingContext context)
@@ -504,6 +504,7 @@ foreach (var endpointClass in assembly.GetTypes().Except(new[]{typeof(Asana)}))
 
 /*
 <#
+/*
     foreach (var type in assembly.GetTypes().Where(t => t.Name.StartsWith("Asana")))
     {
 		
@@ -520,6 +521,6 @@ foreach (var endpointClass in assembly.GetTypes().Except(new[]{typeof(Asana)}))
         }
 		Write("\r\n\r\n");
     }
-
+*/
 #>
 */

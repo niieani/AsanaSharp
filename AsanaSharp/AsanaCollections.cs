@@ -44,15 +44,21 @@ namespace AsanaSharp
             };
         }
 
-        internal bool Import(IEnumerable<T> source)
+        internal bool Import(IEnumerable<T> source, bool skipRemoving = false)
         {
-            var objectsRemoved = Collection.Except(source).ToArray();
             var objectsAdded = source.Except(Collection).ToArray();
 
             foreach (var added in objectsAdded)
                 Collection.Add(added);
-            foreach (var removed in objectsRemoved)
-                Collection.Remove(removed);
+
+            var objectsRemoved = new T[0];
+
+            if (!skipRemoving)
+            {
+                objectsRemoved = Collection.Except(source).ToArray();
+                foreach (var removed in objectsRemoved)
+                    Collection.Remove(removed);
+            }
 
             _fetched = true;
 

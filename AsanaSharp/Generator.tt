@@ -1,0 +1,607 @@
+﻿<#@ template debug="false" hostspecific="false" language="C#" #>
+<#@ assembly name="System.Core" #>
+<# //@ assembly name="C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.5\System.Core.dll" #>
+<# //@ assembly name="C:\Program Files (x86)\Mono-3.4.0\lib\mono\4.5\System.Core.dll" #>
+<#@ assembly name="$(SolutionDir)\AsanaSharpApiDefinition\bin\Debug\AsanaSharpApiDefinition.dll" #>
+<#@ import namespace="AsanaSharp" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Net" #>
+<#@ import namespace="System.Text" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ import namespace="System.Reflection" #>
+<#@ import namespace="System.Linq" #>
+<#@ output extension=".cs" #>
+<#
+var assembly = typeof (Asana).Assembly;
+var definedTypes =
+    assembly.GetTypes()
+        .Where(t => t.Name.StartsWith("Asana") && !t.Name.Contains("Collection"))
+        .Except(new[] {typeof (Asana)});
+
+// SUPPORTIVE FUNCTIONS
+
+Action<UniversalProperty> makeMember = delegate(UniversalProperty classProperty)
+{
+    if (classProperty.IsProperty)
+    {
+        //var isAsanaObject = classProperty.FriendlyTypeName.Contains("Asana");
+        if (!classProperty.IsList)
+        {
+#>
+		public <#= classProperty.FriendlyTypeName #> <#= classProperty.Name #>
+		{
+<#
+			if (!classProperty.IsReadOnly)
+			{
+#>
+			get 
+			{
+				return _local<#= classProperty.Name #> ?? _remote<#= classProperty.Name #>;
+			}
+			set
+			{
+				if (_remote<#= classProperty.Name #> != value)
+					_local<#= classProperty.Name #> = value;
+			}
+<#
+			}
+			else
+			{
+#>
+			get 
+			{
+				return _remote<#= classProperty.Name #>;
+			}
+<#			    
+			}
+#>
+        }
+		
+		[JsonProperty("<#= classProperty.AsanaName #>")]
+        private <#= classProperty.FriendlyTypeName #> _remote<#= classProperty.Name #>
+		{
+			get 
+			{
+				return _remoteValue<#= classProperty.Name #>;
+			}
+			set
+			{
+				if (_remoteValue<#= classProperty.Name #> != value)
+				{
+					_remoteValue<#= classProperty.Name #> = value;
+					OnPropertyChanged("<#= classProperty.Name #>");
+				}
+			}
+		}
+		private <#= classProperty.FriendlyTypeName #> _remoteValue<#= classProperty.Name #>;
+
+<#
+			if (!classProperty.IsReadOnly)
+			{
+#>
+		private <#= classProperty.FriendlyTypeName #> _local<#= classProperty.Name #>;
+
+<#
+			}
+        }
+        else // is a list
+        {
+            var privateName = Char.ToLowerInvariant(classProperty.Name[0]) + classProperty.Name.Substring(1);
+#>
+		// TODO: there's a useless check for whether this is NULL, but it shouldn't be useless if we can "new" this during manual object creation
+		public <#= classProperty.FriendlyTypeNameOrAsanaList #> <#= classProperty.Name #> = new <#= classProperty.FriendlyTypeNameOrAsanaList #>();
+        [JsonProperty(PropertyName = "<#= classProperty.AsanaName #>")]
+		private <#= classProperty.Type.GetFriendlyName() #> _deserialized<#= classProperty.Name #>;
+<#
+        }
+    }
+	 
+    foreach (var endpointAttribute in classProperty.MemberInfo.GetCustomAttributes<EndpointAttribute>(false))
+    {
+		var urlSegmentParams = classProperty.MemberInfo.GetCustomAttributes<UrlSegmentParamAttribute>(true).ToArray();
+		
+		var niceName = classProperty.NiceName;
+
+        var methodName = "Get" + niceName;
+		var methodType = "GET";
+        var methodReturns = "async Task<" + classProperty.FriendlyTypeNameOrAsanaList + ">";
+        var methodKeyword = "public";
+	    var settingPost = endpointAttribute.GetType() == typeof (SetEndpointAttribute);
+        var niceNameSingular = niceName.Depluralize();
+        var deserializeTo = classProperty.IsList ? "AsanaArrayResponse" : "AsanaResponse";
+
+//		var availableMethods = Enum.GetValues(typeof(EndpointMethods)).Cast<Enum>();
+//        foreach (var flag in availableMethods.Where(endpointAttribute.Methods.HasFlag))
+
+        var availableMethods = new[] {EndpointMethods.Get, EndpointMethods.Delete, EndpointMethods.Post}.Cast<Enum>();
+
+        var addingOrRemovingFromCollection = false;
+
+        foreach (var flag in availableMethods.Where(endpointAttribute.Methods.HasFlag))
+        {
+			var parameters = new List<ParamAttribute>();
+
+            if (flag.HasFlag(EndpointMethods.Get))
+            {
+				parameters = classProperty.MemberInfo.GetCustomAttributes<GetParamAttribute>(true).Cast<ParamAttribute>().ToList();
+                parameters.Add(new GetParamAttribute(ParamType.Optional, "opt_fields", typeof (string)));
+            }
+            if (flag.HasFlag(EndpointMethods.Post) && !settingPost)
+            {
+				methodName = "New" + niceNameSingular;
+				methodType = "POST";
+				methodReturns = "Asana" + classProperty.Name.Depluralize();
+				parameters = classProperty.MemberInfo.GetCustomAttributes<CreateParamAttribute>(true).Cast<ParamAttribute>().ToList();
+            }
+            if (flag.HasFlag(EndpointMethods.Delete))
+            {
+				methodName = "Delete" + niceName;
+				methodType = "DELETE";
+                methodReturns = "async Task";
+            }
+            if (endpointAttribute.GetType() == typeof (AddToCollectionEndpointAttribute) ||
+                endpointAttribute.GetType() == typeof (RemoveFromCollectionEndpointAttribute))
+            {
+                addingOrRemovingFromCollection = true;
+                methodReturns = "async Task";
+                deserializeTo = "AsanaResponse";
+            }
+			if (endpointAttribute.GetType() == typeof (AddToCollectionEndpointAttribute))
+			{
+                methodName = "Add" + classProperty.Name.Depluralize();
+				parameters = classProperty.MemberInfo.GetCustomAttributes<AddToCollectionParamAttribute>(true).Cast<ParamAttribute>().ToList();
+			}
+			if (endpointAttribute.GetType() == typeof (RemoveFromCollectionEndpointAttribute))
+			{
+                methodName = "Remove" + classProperty.Name.Depluralize();
+				parameters = classProperty.MemberInfo.GetCustomAttributes<RemoveFromCollectionParamAttribute>(true).Cast<ParamAttribute>().ToList();
+			}
+			if (endpointAttribute.GetType() == typeof (SetEndpointAttribute))
+			{
+                methodName = "Set" + classProperty.Name.Depluralize();
+				parameters = classProperty.MemberInfo.GetCustomAttributes<SetParamAttribute>(true).Cast<ParamAttribute>().ToList();
+			}
+
+            var requiredParams = parameters.Where(p => p.ParamType == ParamType.Required);
+			var optionalParams = parameters.Where(p => p.ParamType == ParamType.Optional);
+			var internalParams = parameters.Where(p => p.ParamType == ParamType.Internal);
+
+			var endpointParamsFormatted = urlSegmentParams.Where(p => p.ParamType != ParamType.Internal)
+														.Select(p => String.Format("{0} {1}", p.Type.GetFriendlyName(), p.NiceParamName));
+			var requiredParamsFormatted = requiredParams.Select(p => String.Format("{0} {1}", p.Type.GetFriendlyName(), p.NiceParamName));
+			var optionalParamsFormatted = optionalParams.Select(p => String.Format("{0} {1} = null", p.Type.GetFriendlyName(), p.NiceParamName));
+			var optionalParamsCustomDefault = optionalParams.Where(p => !String.IsNullOrEmpty(p.DefaultValue))
+														.Select(p => String.Format("bool {0} = false", p.NiceDefaultValueParamName));
+
+			var formattedParams = new List<string>();
+			formattedParams.AddRange(endpointParamsFormatted);
+			formattedParams.AddRange(requiredParamsFormatted);
+			formattedParams.AddRange(optionalParamsFormatted);
+			formattedParams.AddRange(optionalParamsCustomDefault);
+
+			var paramsString = String.Join(", ", formattedParams);
+
+#>
+
+		/// <summary>
+        /// Accesses the <#= endpointAttribute.Endpoint #> endpoint.
+        /// </summary>
+        /// <returns></returns>
+		<#= methodKeyword #> <#= methodReturns #> <#= methodName #>(<#= paramsString #>)
+		{
+			var request = new RestRequest("<#= endpointAttribute.Endpoint #>", Method.<#= methodType #>);
+<#
+            foreach (var urlSegment in urlSegmentParams)
+            {
+                var setParamAs = urlSegment.RealInternalMemberName ?? urlSegment.NiceParamName;
+#>
+			request.AddUrlSegment("<#= urlSegment.ParamName #>", <#= setParamAs #>.ToString());
+<#
+            }
+#>
+<#
+            foreach (var param in parameters)
+            {
+                var setParamAs = param.RealInternalMemberName ?? param.FullInnerProperty ?? param.NiceParamName;
+
+                if (param.ParamType == ParamType.Optional)
+                {
+					if (!String.IsNullOrEmpty(param.DefaultValue))
+					{
+#>
+			if (<#= param.NiceDefaultValueParamName #>)
+				request.AddParameter("<#= param.ParamName #>", "<#= param.DefaultValue #>");
+			else
+<#
+					}
+                    if (!String.IsNullOrEmpty(param.InnerProperty)) // if setting an inner property
+                    {
+#>
+			if (ReferenceEquals(<#= param.NiceParamName #>, null) || ReferenceEquals(<#= setParamAs #>, null))
+				throw new NullReferenceException("Missing <#= setParamAs #>");
+			else
+<#
+                    }
+#>
+			if (!ReferenceEquals(<#= setParamAs #>, null))
+				request.AddParameter("<#= param.ParamName #>", <#= setParamAs #>.ToString());
+<#
+                }
+				else
+				{
+                    if (!String.IsNullOrEmpty(param.DefaultValue))
+                    {
+#>
+			request.AddParameter("<#= param.ParamName #>", "<#= param.DefaultValue #>");
+<#
+                    }
+                    else
+                    {
+#>
+			request.AddParameter("<#= param.ParamName #>", <#= setParamAs #>.ToString());
+<#
+                    }
+				}
+            }
+            if (flag.HasFlag(EndpointMethods.Post) && !addingOrRemovingFromCollection && !settingPost)
+            {
+#>
+			return new <#= methodReturns #> {CreateRequest = request, AsanaHost = AsanaHost}; // TODO: random minus ID ?
+<#
+			}
+			else
+			{
+#>
+			// execute the request
+			var response = await AsanaHost.RestClient.ExecuteTaskAsync(request);
+
+			using (var stringReader = new StringReader(response.Content)) // raw content as string
+            using (var reader = new JsonTextReader(stringReader))
+            {
+				var jsonData = AsanaHost.JsonDeserializer.Deserialize<<#= deserializeTo #>>(reader);
+                if (!ReferenceEquals(jsonData.Errors, null)) // || !string.IsNullOrEmpty(jsonData.Errors.Message)
+                    throw new Exception("A remote error has occured: " + jsonData.Errors.First().Message);
+				
+<#
+            if (!flag.HasFlag(EndpointMethods.Delete) && !flag.HasFlag(EndpointMethods.Post) || settingPost)
+            {
+				if (classProperty.IsList)
+				{
+#>
+				var resultsCollection = jsonData.Data.ToObject<<#= classProperty.Type.GetFriendlyName() #>>(AsanaHost.JsonDeserializer);
+				
+				if (ReferenceEquals(<#= niceName #>, null))
+				{
+					<#= niceName #> = new <#= classProperty.FriendlyTypeNameOrAsanaList #>(resultsCollection);
+				}
+				else
+				{
+					<#= niceName #>.Import(resultsCollection);
+				}
+
+				AsanaHost.Cache.<#= classProperty.FriendlyInnerName #>Collection.Import(resultsCollection, true);
+				return <#= niceName #>;
+<#
+				}
+				else // NOT A LIST
+				{
+#>
+				return jsonData.Data.ToObject<<#= classProperty.FriendlyTypeNameOrAsanaList #>>(AsanaHost.JsonDeserializer);
+<#
+				}
+            }
+			// TODO: ADD if DELETE - purge the element by ID from everywhere and change ID to 0
+#>
+			}
+<#			
+			}
+#>
+		}
+
+<#
+        } // END FOREACH FLAG
+//        } // END GET
+    }
+};
+
+
+Action<PropertyInfo[], Type> makeSave = delegate(PropertyInfo[] classProperties, Type endpointClass)
+{
+#>
+		internal RestRequest CreateRequest;
+		public async Task<<#= endpointClass.Name #>> Save()
+		{
+<#
+    var updateEndpoint = endpointClass.GetCustomAttributes<EndpointAttribute>(true)
+        .First(endpoint => endpoint.Methods.HasFlag(EndpointMethods.Put));
+#>
+			if (HasLocalChanges)
+			{
+				RestRequest request;
+				if (IsLocal && !ReferenceEquals(CreateRequest, null))
+					request = CreateRequest;
+				else request = new RestRequest("<#= updateEndpoint.Endpoint #>", Method.PUT);
+            
+				// TODO: iterate UrlSegmentParam
+				request.AddUrlSegment("id", Id.ToString());
+
+				// for each _local
+<#
+		foreach (var classPropertyUnderlying in classProperties)
+		{
+			var classProperty = new UniversalProperty(classPropertyUnderlying);
+			
+			if (!classProperty.IsReadOnly)
+			{
+			    if (!classProperty.IsList)
+			    {
+#>
+				if (!ReferenceEquals(_local<#= classProperty.Name #>, null))
+					request.AddParameter("<#= classProperty.AsanaName #>", _local<#= classProperty.Name #>.ToString());
+<#
+			    }
+			    else if (!classProperty.MemberInfo.GetCustomAttributes<ExcludeFromCreation>(true).Any())
+			    {
+#>
+
+				if (IsLocal)
+				{
+					var count = 0;
+					if (<#= classProperty.Name #>.BufferCount > 0)
+					{
+						var <#= classProperty.Name #>Buffer = <#= classProperty.Name #>.GetBufferAndPurge();
+						foreach (var single in <#= classProperty.Name #>Buffer.AddBuffer)
+						{
+							// TODO: save only if possible
+							await single.Save(); // save if not saved yet
+							request.AddParameter("<#= classProperty.AsanaName #>" + "[" + count + "]", single.Id.ToString());
+							count++;
+						}
+					}
+				}
+
+<#
+			    }
+			}
+		}
+#>
+
+				// execute the request
+				var response = await AsanaHost.RestClient.ExecuteTaskAsync(request);
+				// <#= endpointClass.Name #> retVal;
+
+				using (var stringReader = new StringReader(response.Content)) // raw content as string
+				using (var reader = new JsonTextReader(stringReader))
+				{
+					var jsonData = AsanaHost.JsonDeserializer.Deserialize<AsanaResponse>(reader);
+					if (!ReferenceEquals(jsonData.Errors, null)) // (!string.IsNullOrEmpty(jsonData.Errors.Message))
+						throw new Exception("A remote error has occured: " + jsonData.Errors.First().Message);
+
+				    _id = (Int64) jsonData.Data.Property("id");
+                    AsanaHost.JsonCachingContext.SetReference<<#= endpointClass.Name #>>(Id, this);
+					//retVal = 
+					jsonData.Data.ToObject<<#= endpointClass.Name #>>(AsanaHost.JsonDeserializer);
+				}
+			}
+			// nullify _local and update lists
+<#
+		foreach (var classPropertyUnderlying in classProperties)
+		{
+			var classProperty = new UniversalProperty(classPropertyUnderlying);
+
+		    if (!classProperty.IsReadOnly && !classProperty.IsList)
+		    {
+#>
+			if (!ReferenceEquals(_local<#= classProperty.Name #>, null))
+				_local<#= classProperty.Name #> = null;
+<#
+		    }
+
+			if (!classProperty.IsReadOnly && classProperty.IsList)
+			{
+#>
+
+			if (<#= classProperty.Name #>.BufferCount > 0)
+			{
+				var <#= classProperty.Name #>Buffer = <#= classProperty.Name #>.GetBufferAndPurge();
+<#
+				// TODO: make this better
+				if (classProperty.Name == "Followers")
+				{
+#>
+				await Add<#= classProperty.Name.Depluralize() #>(<#= classProperty.Name #>Buffer.AddBuffer.ToArray());
+				await Remove<#= classProperty.Name.Depluralize() #>(<#= classProperty.Name #>Buffer.RemoveBuffer.ToArray());
+<#
+				}
+				else
+				{
+#>
+				foreach (var single in <#= classProperty.Name #>Buffer.AddBuffer)
+				{
+					// TODO: save only if possible
+					await single.Save();
+					await Add<#= classProperty.Name.Depluralize() #>(single);
+				}
+				foreach (var single in <#= classProperty.Name #>Buffer.RemoveBuffer)
+				{
+					await Remove<#= classProperty.Name.Depluralize() #>(single);
+				}
+<#
+				} // end ELSE "Followers"
+#>
+			}
+
+<#
+			}
+		}
+#>
+				//return retVal;
+			return this;
+		}
+<#
+};
+
+Action<UniversalProperty> makeOnDeserialized = delegate(UniversalProperty classProperty)
+{
+    if (classProperty.IsProperty && classProperty.IsList)
+    {
+#>
+			// Load <#= classProperty.Name #> //
+			if (!ReferenceEquals(_deserialized<#= classProperty.Name #>, null))
+			{
+				if (ReferenceEquals(<#= classProperty.Name #>, null))
+				{
+					// first deserialization
+					<#= classProperty.Name #> = new <#= classProperty.FriendlyTypeNameOrAsanaList #>(_deserialized<#= classProperty.Name #>);
+					if (_deserialized<#= classProperty.Name #>.Any())
+						OnPropertyChanged("<#= classProperty.Name #>");
+				}
+				else
+				{
+					var anythingChanged = <#= classProperty.Name #>.Import(_deserialized<#= classProperty.Name #>);
+					if (anythingChanged)
+						OnPropertyChanged("<#= classProperty.Name #>");
+				}
+
+				// cleanup
+				_deserialized<#= classProperty.Name #> = null;
+			}
+			else if (ReferenceEquals(<#= classProperty.Name #>, null))
+			{
+				<#= classProperty.Name #> = new <#= classProperty.FriendlyTypeNameOrAsanaList #>();
+			}
+			// ----------------------------- //
+
+<#
+    }
+};
+
+
+
+// END SUPPORTIVE FUNCTIONS
+
+#>
+using System;
+using System.Threading.Tasks;
+using System.Collections.Generic;
+using AsanaSharp;
+using Newtonsoft.Json;
+using RestSharp;
+using System.IO;
+using System.Runtime.Serialization;
+using System.Linq;
+
+namespace AsanaSharp
+{
+	/// <summary>
+    /// Generated: Get by ID with the EndpointAttribute.
+    /// </summary>
+	//[JsonObject(MemberSerialization.OptIn)]
+	public partial class Asana
+	{
+<#
+foreach (var classProperty in typeof (Asana).GetProperties())
+{
+    makeMember(new UniversalProperty(classProperty));
+}
+
+foreach (var endpointClass in assembly.GetTypes())
+{
+	makeMember(new UniversalProperty(endpointClass));
+}
+
+#>
+	} // END: public partial class Asana
+
+	public partial class AsanaCache
+	{
+<#
+foreach (var endpointClass in definedTypes)
+{
+	WriteLine("		internal AsanaReadOnlyCollection<{0}> {0}Collection = new AsanaReadOnlyCollection<{0}>();", endpointClass.Name);
+}
+#>
+	}
+
+<#
+foreach (var endpointClass in definedTypes)
+{
+    var classProperties = endpointClass.GetProperties();
+	
+    if (endpointClass.GetCustomAttributes<ApiTemplate>(true).Any())
+    {
+#>
+	public partial class <#= endpointClass.Name #> : AsanaResource
+	{
+<#
+		foreach (var classProperty in classProperties)
+		{
+			makeMember(new UniversalProperty(classProperty));
+		}
+
+        var endpointAttribute = endpointClass.GetCustomAttribute<EndpointAttribute>();
+        if (endpointAttribute.Methods.HasFlag(EndpointMethods.Post) ||
+            endpointAttribute.Methods.HasFlag(EndpointMethods.Put))
+        {
+            makeSave(classProperties, endpointClass);
+        }
+        else
+        {
+#>
+		// makes a dummy save action; TODO: remove this
+		public async Task<<#= endpointClass.Name #>> Save()
+		{
+			return this;
+		}
+<#
+        }
+#>
+
+		[OnDeserialized]
+		internal void OnDeserializedMethod(StreamingContext context)
+		{
+<#
+		foreach (var classProperty in classProperties)
+		{
+			makeOnDeserialized(new UniversalProperty(classProperty));
+		}
+		
+#>
+		}
+
+		[OnDeserializing]
+		internal void OnDeserializingMethod(StreamingContext context)
+		{
+			if (ReferenceEquals(AsanaHost, null))
+				AsanaHost = ((JsonLinkedContext)context.Context).AsanaHost;
+		}
+
+		public bool HasLocalChanges
+		{
+			get 
+			{
+				var hasChanges = false;
+<#
+		foreach (var classProperty in classProperties)
+		{
+			var property = new UniversalProperty(classProperty);
+			
+			if (!property.IsReadOnly && !property.IsList)
+			{
+#>
+				if (!ReferenceEquals(_local<#= property.Name #>, null))
+					hasChanges = true;
+<#
+			}
+		}
+#>
+				return hasChanges;
+			}
+		}
+	} // END class: <#= endpointClass.Name #>
+
+<#
+	}
+}
+#>
+} // END: namespace

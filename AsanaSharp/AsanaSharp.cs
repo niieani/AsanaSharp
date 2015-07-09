@@ -28,12 +28,12 @@ namespace AsanaSharp
     public class AsanaResponse
     {
         public JObject Data { get; set; }
-        public AsanaError Errors { get; set; }
+        public AsanaError[] Errors { get; set; }
     }
     public class AsanaArrayResponse
     {
         public JArray Data { get; set; }
-        public AsanaError Errors { get; set; }
+        public AsanaError[] Errors { get; set; }
     }
 
     public class AsanaError
@@ -41,6 +41,25 @@ namespace AsanaSharp
         public string Message { get; set; }
         public string Phrase { get; set; }
     }
+
+	public class AsanaTaskMembership
+	{
+		public AsanaProject Project { get; set; }
+		public AsanaTask Section { get; set; }
+
+		public AsanaTaskMembership(AsanaProject project, AsanaTask section = null)
+		{
+			Project = project;
+			Section = section;
+		}
+
+		public async Task<AsanaTaskMembership> Save()
+		{
+			await Project.Save();
+			if (!ReferenceEquals(Section, null)) await Section.Save();
+			return this;
+		}
+	}
 
     internal interface IJsonLinkable
     {
@@ -59,7 +78,7 @@ namespace AsanaSharp
         }
 
         [JsonIgnore]
-        public Asana AsanaHost;
+        internal Asana AsanaHost;
 
         [JsonIgnore]
         Asana IAsanaContainer.AsanaHost { get { return AsanaHost; } }
@@ -72,19 +91,16 @@ namespace AsanaSharp
 
     public abstract class AsanaResource : AsanaContainer, IJsonLinkable
     {
-        public Int64 Id { get { return _id; } }
+        public Int64 Id => _id;
 
-        [JsonProperty("id")]
-        private Int64 _id;
+	    [JsonProperty("id")]
+        internal Int64 _id;
         //Int64 IJsonLinkable.Id { get { return Id; } }
 
 
-        public bool IsLocal
-        {
-            get { return Id == 0; }
-        }
+        public bool IsLocal => (Id <= 0);
 
-        /// <summary>
+	    /// <summary>
         /// Overrides the ToString method.
         /// </summary>
         /// <returns></returns>
@@ -127,6 +143,27 @@ namespace AsanaSharp
             return value.Id;
         }
     }
+    /*
+    internal class AsanaCache
+    {
+        // TODO: add to generator
+        internal AsanaReadOnlyCollection<AsanaTask> AsanaTaskCollection = new AsanaReadOnlyCollection<AsanaTask>();
+        internal AsanaReadOnlyCollection<AsanaProject> AsanaProjectsCollection = new AsanaReadOnlyCollection<AsanaProject>();
+//        internal AsanaReadOnlyCollection<AsanaTag> Tags;
+//        internal AsanaReadOnlyCollection<AsanaStory> Stories;
+        internal AsanaReadOnlyCollection<AsanaWorkspace> AsanaWorkspaceCollection = new AsanaReadOnlyCollection<AsanaWorkspace>();
+        internal AsanaReadOnlyCollection<AsanaUser> AsanaUserCollection = new AsanaReadOnlyCollection<AsanaUser>();
+    }
+    */
+
+    public class AsanaUserPhotos
+    {
+        public string Image21x21;
+        public string Image27x27;
+        public string Image36x36;
+        public string Image60x60;
+        public string Image128x128;
+    }
 
     public partial class Asana : AsanaContainer
     {
@@ -134,15 +171,17 @@ namespace AsanaSharp
         {
             get { return this; }
         }
+
+        public readonly AsanaCache Cache = new AsanaCache();
         internal readonly RestClient RestClient;
         internal readonly JsonLinkedContext JsonCachingContext;
         internal readonly JsonSerializer JsonDeserializer; //TODO make internal
-        public readonly JsonSerializer JsonSerializer; //TODO make internal
+        //public readonly JsonSerializer JsonSerializer; //TODO make internal
         public Asana()
         {
             RestClient = new RestClient("https://app.asana.com/api/1.0");
             //new OAuth2UriQueryParameterAuthenticator(token)
-            RestClient.Authenticator = new HttpBasicAuthenticator(@"YOUR_KEY", "");
+            RestClient.Authenticator = new HttpBasicAuthenticator(@"YOUR API KEY HERE", "");
 
             JsonCachingContext = new JsonLinkedContext(this);
 
@@ -155,7 +194,7 @@ namespace AsanaSharp
                 //                ReferenceResolver = refResolver
             };
             JsonDeserializer.Converters.Add(new JsonRefedConverter());
-
+            /*
             JsonSerializer = new JsonSerializer
             {
 
@@ -169,21 +208,21 @@ namespace AsanaSharp
                 NullValueHandling = NullValueHandling.Ignore,
                 ContractResolver = new RemoteFieldResolver(),
             };
-
+            */
 //            var reader = new JsonTextReader(new StringReader(taskJson));
 //            var jsonData = JsonDeserializer.Deserialize<AsanaResponse>(reader);
 //            var jsonTask = jsonData.Data.ToObject<AsanaTask>(JsonDeserializer);
         }
     }
-
+    /*
     internal class RemoteFieldResolver : DefaultContractResolver
     {
-        /*
-        public RemoteFieldResolver()
-        {
-            DefaultMembersSearchFlags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
-        }
-        */
+        
+//        public RemoteFieldResolver()
+//        {
+//            DefaultMembersSearchFlags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+//        }
+        
         protected override List<MemberInfo> GetSerializableMembers(Type objectType)
         {
             var members = base.GetSerializableMembers(objectType);
@@ -196,23 +235,24 @@ namespace AsanaSharp
             return outFields;
             //                return base.GetSerializableMembers(objectType);
         }
-        /*
-        protected override IList<JsonProperty> CreateProperties(Type type, MemberSerialization memberSerialization)
-        {
-            IList<JsonProperty> properties = base.CreateProperties(type, memberSerialization);
+        
+//        protected override IList<JsonProperty> CreateProperties(Type type, MemberSerialization memberSerialization)
+//        {
+//            IList<JsonProperty> properties = base.CreateProperties(type, memberSerialization);
 
-            // only serializer properties that were specified
-            //            if (_list.ContainsKey(type))
-            //                properties = properties.Where(p => _list[type].Contains(p.PropertyName)).ToList();
-//            foreach (var prop in properties)
-//            {
-//                prop.ShouldSerialize = o => true;
-//            }
-//            properties.Select(p => p.ShouldSerialize = o => true);
-            return properties;
-        }
-        */
+//            // only serializer properties that were specified
+//            //            if (_list.ContainsKey(type))
+//            //                properties = properties.Where(p => _list[type].Contains(p.PropertyName)).ToList();
+////            foreach (var prop in properties)
+////            {
+////                prop.ShouldSerialize = o => true;
+////            }
+////            properties.Select(p => p.ShouldSerialize = o => true);
+//            return properties;
+//        }
+        
     }
+     * */
     public class UnderscoreMappingResolver : DefaultContractResolver
     {
         protected override string ResolvePropertyName(string propertyName)
@@ -256,45 +296,6 @@ namespace AsanaSharp
     }
 
 
-    // http://stackoverflow.com/questions/13108693/serializing-heavily-linked-data-in-net-customizing-json-net-references/13113901#13113901
-    class JsonRefConverter : JsonConverter
-    {
-        public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
-        {
-            writer.WriteValue(((IJsonLinkable)value).Id);
-        }
-        /*
-        public override object ReadJson(JsonReader reader, Type type, object existingValue, JsonSerializer serializer)
-        {
-            var jo = JObject.Load(reader);
-            var value = JsonLinkedContext.GetLinkedValue(serializer, type, (Int64)jo.Property("id")); //.PropertyValues().First()
-            serializer.Populate(jo.CreateReader(), value);
-            return value;
-        }
-        */
-        
-        public override object ReadJson(JsonReader reader, Type type, object existingValue, JsonSerializer serializer)
-        {
-            if (reader.TokenType == JsonToken.StartObject)
-            {
-                //                var outObj = Activator.CreateInstance(type, true);
-                //                var outObj = serializer.Deserialize(reader, type);
-                //                return JsonLinkedContext.GetLinkedValue(serializer, type, ((IJsonLinkable)outObj).Id);
-                return JsonLinkedContext.SetLinkedValue(serializer, type, reader);
-            }
-            else
-                    throw new Exception("Ref value must be an object.");
-//                        if (reader.TokenType != JsonToken.String)
-//                    throw new Exception("Ref value must be a string.");
-//                return JsonLinkedContext.GetLinkedValue(serializer, type, reader.Value.ToString());
-        }
-        
-        public override bool CanConvert(Type type)
-        {
-            return type.IsAssignableFrom(typeof(IJsonLinkable));
-        }
-    }
-
     class JsonRefedConverter : JsonConverter
     {
         public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
@@ -318,7 +319,7 @@ namespace AsanaSharp
         }
     }
 
-    public class JsonLinkedContext //make internal
+    internal class JsonLinkedContext //make internal
     {
         private readonly IDictionary<Type, IDictionary<Int64, object>> links = new Dictionary<Type, IDictionary<Int64, object>>();
         public readonly Asana AsanaHost;
@@ -353,91 +354,19 @@ namespace AsanaSharp
             object value;
             if (!links.TryGetValue(reference, out value))
                 links[reference] = value = FormatterServices.GetUninitializedObject(type);
-            else
-            {
-                    
-            }
             return value;
         }
 
-        public static object SetLinkedValue(JsonSerializer serializer, Type type, JsonReader reader)
+        public void SetReference<T>(Int64 reference, object obj)
         {
-            var refObj = serializer.Deserialize(reader, type);
-            var reference = ((IJsonLinkable)refObj).Id;
-            var context = (JsonLinkedContext)serializer.Context.Context;
-            IDictionary<Int64, object> links;
-            if (!context.links.TryGetValue(type, out links))
-                context.links[type] = links = new Dictionary<Int64, object>();
-            object value;
-            if (!links.TryGetValue(reference, out value))
-                links[reference] = value = refObj;
-            else
-                serializer.Populate(reader, value);
-            return value;
+            var type = typeof (T);
+            IDictionary<Int64, object> typeDict;
+            if (!links.TryGetValue(type, out typeDict))
+                links[type] = typeDict = new Dictionary<Int64, object>();
+
+            typeDict[reference] = obj;
         }
     }
 
-    public class AsanaReferenceResolver : IReferenceResolver
-    {
-        private readonly JsonLinkedContext JsonLinkedContext;
-        //private readonly IDictionary<Int64, ObjectId> _people = new Dictionary<Int64, ObjectId>();
-
-        public AsanaReferenceResolver(JsonLinkedContext context)
-        {
-            JsonLinkedContext = context;
-        }
-
-        public object ResolveReference(object context, string reference)
-        {
-//            var jsonContext = (JsonLinkedContext)context;
-            var id = Int64.Parse(reference);
-
-            var p = JsonLinkedContext.GetValueById(id);
-
-            return p;
-        }
-
-        public string GetReference(object context, object value)
-        {
-//            var jsonContext = (JsonLinkedContext)context;
-            var p = (IJsonLinkable)value;
-            //_referencedOnce.Add(p.Id);
-
-            return p.Id.ToString();
-        }
-
-        //private List<long> _referencedOnce = new List<long>();
-        private Dictionary<long, int> _referencedCount = new Dictionary<long, int>();
-
-
-        public bool IsReferenced(object context, object value)
-        {
-//            var jsonContext = (JsonLinkedContext)context;
-            var p = (IJsonLinkable)value;
-            if (JsonLinkedContext.ContainsId(p.Id))
-            {
-                return true;
-                if (_referencedCount.ContainsKey(p.Id))
-                {
-                    _referencedCount[p.Id]++;
-                    if (_referencedCount[p.Id] >= 2)
-                        return true;
-                }
-                else
-                {
-                    _referencedCount.Add(p.Id, 1);
-                }
-            }
-            return false;
-        }
-
-        public void AddReference(object context, string reference, object value)
-        {
-            Int64 id = Int64.Parse(reference);
-            var outValue = (IJsonLinkable)value;
-//            _people[id] = outValue;
-//            outValue.Id = id;
-        }
-    }
 
 }
